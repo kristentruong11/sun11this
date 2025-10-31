@@ -1,8 +1,4 @@
-import { createClient } from '@base44/sdk';
-// import { getAccessToken } from '@base44/sdk/utils/auth-utils';
+import { customClient } from "../lib/custom-sdk.js";
 
-// Create a client with authentication required
-export const base44 = createClient({
-  appId: "6901c4a16bf034491b253b78", 
-  requiresAuth: true // Ensure authentication is required for all operations
-});
+// Export the custom client as base44 for compatibility
+export const base44 = customClient;
