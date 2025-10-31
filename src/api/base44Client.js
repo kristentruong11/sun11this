@@ -1,17 +1,6 @@
-// src/api/base44Client.js (shim)
-import { createClient } from "@supabase/supabase-js";
-import { invokeLLM } from "@/lib/custom-sdk";
+// src/api/base44Client.js
+import { customClient } from "@/lib/custom-sdk";
 
-export const base44 = {
-  entities: { /* your Supabase wrappers */ },
-  integrations: {
-    Core: {
-      InvokeLLM: (args) => invokeLLM(args),
-      GenerateImage: async ({ prompt }) => ({ url: `https://picsum.photos/seed/${encodeURIComponent(prompt)}/1024/576` }),
-    },
-  },
-  functions: {
-    historyAssistant: async ({ prompt, kbContext }) =>
-      invokeLLM({ prompt, kbContext }),
-  },
-};
+// Recreate the old Base44-shaped client so existing imports keep working
+export const base44 = customClient;
+// (customClient already exposes: entities, auth, functions, integrations)
