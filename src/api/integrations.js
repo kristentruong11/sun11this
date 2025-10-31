@@ -5,7 +5,8 @@ import { base44 } from './base44Client';
 
 export const Core = base44.integrations.Core;
 
-export const InvokeLLM = base44.integrations.Core.InvokeLLM;
+import { invokeLLM } from "@/lib/custom-sdk";
+export const InvokeLLM = invokeLLM;
 
 export const SendEmail = base44.integrations.Core.SendEmail;
 

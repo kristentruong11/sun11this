@@ -369,10 +369,41 @@ export function createCustomClient() {
     },
     integrations: {
       Core: {
-        InvokeLLM: async ({ prompt }) => {
-          console.warn("InvokeLLM mock called with:", { prompt });
-          return { response: "(LLM integration not yet implemented)" };
-        },
+        // AFTER (real)
+export async function invokeLLM({ prompt, messages, kbContext } = {}) {
+  const msgs = messages && messages.length
+    ? messages
+    : (prompt ? [{ role: "user", content: prompt }] : []);
+
+  // For local dev, you can set VITE_API_BASE="https://lich-su.org" in .env.local
+  const base = import.meta?.env?.DEV
+    ? (import.meta.env.VITE_API_BASE || "")
+    : "";
+  const url = `${base}/api/chat`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages: msgs, kbContext: kbContext || "" }),
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`LLM API failed: ${res.status} ${txt}`);
+  }
+
+  const data = await res.json();
+  // Keep the return shape compatible with your caller
+  return { content: data.content || "" };
+}
+
+// (optional) keep the same shape Base44 expected:
+export const Integrations = {
+  Core: {
+    InvokeLLM: (args) => invokeLLM(args),
+  },
+};
+
         SendEmail: async ({ to, subject, body, from_name = "Peace Adventures" }) => {
           console.warn("SendEmail mock:", { to, subject, from_name, len: body?.length });
           return { status: "sent", message_id: `mock_${Date.now()}` };
