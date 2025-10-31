@@ -6,34 +6,26 @@ import { getSupabase, getSupabaseAdminSafe } from "./supabase-client.js";
 // Cache the supabase clients (admin is null in browser)
 const supabase = getSupabase();
 const supabaseAdmin = getSupabaseAdminSafe();
+// Top-level helper (NOT inside any object/return)
 
-/* --------------------------- TOP-LEVEL LLM HELPER --------------------------- */
-// MUST be top-level (not inside any object literal)
 export async function invokeLLM({ prompt, messages, kbContext } = {}) {
+  // normalize messages[]
   const msgs = Array.isArray(messages) && messages.length
     ? messages
     : (prompt ? [{ role: "user", content: prompt }] : []);
 
-  // Vite-safe env handling
-  const isDev =
-    typeof import.meta !== "undefined" &&
-    import.meta.env &&
-    import.meta.env.DEV;
-
-  const base =
-    isDev && typeof import.meta.env.VITE_API_BASE === "string"
-      ? import.meta.env.VITE_API_BASE
-      : "";
+  // Avoid optional chaining on import.meta for older build pipelines
+  const isDev = typeof import.meta !== "undefined" && import.meta.env && import.meta.env.DEV;
+  const base = isDev && typeof import.meta.env.VITE_API_BASE === "string"
+    ? import.meta.env.VITE_API_BASE
+    : "";
 
   const url = `${base}/api/chat`;
 
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      messages: msgs,
-      kbContext: kbContext || "",
-    }),
+    body: JSON.stringify({ messages: msgs, kbContext: kbContext || "" }),
   });
 
   if (!res.ok) {
@@ -44,6 +36,9 @@ export async function invokeLLM({ prompt, messages, kbContext } = {}) {
   const data = await res.json();
   return { content: data.content || "" };
 }
+
+
+
 
 /* -------------------------------- Utilities -------------------------------- */
 
@@ -66,7 +61,7 @@ function mapFieldName(key) {
     chat_id: "chat_id",
     content: "content",
     role: "role",
-    timestamp: "timestamp",
+    timestamp: "timestamp", // keep quoted in SQL where needed
     message_type: "message_type",
     messageType: "message_type",
 
@@ -197,6 +192,7 @@ class CustomEntity {
   /** INSERT one */
   async create(record = {}) {
     const payload = mapDataFields(record);
+    // Debug: see actual payload
     console.log("📦 INSERT payload →", this.tableName, payload);
 
     const { data, error } = await this.client()
@@ -242,21 +238,25 @@ class CustomEntity {
 
 class UserEntity extends CustomEntity {
   constructor() {
-    super("users", true); // Use service role when available (server), anon in browser
+    // Use service role when available (server), anon in browser
+    super("users", true);
   }
 
   /** Get current auth user (from anon client) and sync to users table */
   async me() {
+    // Use anon client for auth state
     const { data: auth, error: authError } = await supabase.auth.getUser();
     if (authError || !auth?.user) throw new Error("Not authenticated");
 
     const uid = auth.user.id;
+    // Read via admin if available, else anon (RLS must permit)
     const db = this.client();
 
     const { data, error } = await db.from("users").select("*").eq("id", uid).maybeSingle();
     if (error) throw error;
 
     if (!data) {
+      // Create a row for the auth user
       const newRow = {
         id: uid,
         email: auth.user.email,
@@ -273,6 +273,7 @@ class UserEntity extends CustomEntity {
       return mapResultFields(created);
     }
 
+    // Ensure dev user is admin (quality of life)
     if (auth.user.email === "dev@localhost.com" && data.role !== "admin") {
       const { data: updated, error: upErr } = await db
         .from("users")
@@ -291,8 +292,10 @@ class UserEntity extends CustomEntity {
       const email = "dev@localhost.com";
       const password = "dev123456";
 
+      // Try sign-in first
       let { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
+        // Create & sign in
         const { error: signUpErr } = await supabase.auth.signUp({
           email,
           password,
@@ -300,9 +303,13 @@ class UserEntity extends CustomEntity {
         });
         if (signUpErr) throw signUpErr;
 
-        const { error: signInErr2 } = await supabase.auth.signInWithPassword({ email, password });
+        const { error: signInErr2 } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
         if (signInErr2) throw signInErr2;
       }
+      // Refresh app state (optional)
       if (typeof window !== "undefined") window.location.reload();
       return;
     }
@@ -337,18 +344,22 @@ class UserEntity extends CustomEntity {
 /* ------------------------------ Entity Registry ----------------------------- */
 
 function entityNameToTableName(entityName) {
+  // Explicit mappings for your app
   const special = {
-    Message: "chat_history",
+    Message: "chat_history",        // Base44 export → your chat table
     ChatHistory: "chat_history",
     KnowledgeBase: "knowledge_base",
     User: "users",
     Users: "users",
   };
   if (special[entityName]) return special[entityName];
+
+  // Fallback: PascalCase → snake_case
   return entityName.replace(/([A-Z])/g, "_$1").toLowerCase().replace(/^_/, "");
 }
 
 function shouldUseServiceRole(entityName) {
+  // Keep service role minimal — mostly admin-ish entities
   return ["user"].includes(entityName.toLowerCase());
 }
 
@@ -385,34 +396,69 @@ export function createCustomClient() {
     entities: createEntitiesProxy(),
     auth: new UserEntity(),
 
+    // Stubs you can wire later
     functions: {
       verifyHcaptcha: async () => ({ success: true }),
     },
-
     integrations: {
       Core: {
-        // reference the TOP-LEVEL function (NO export here)
-        InvokeLLM: (args) => invokeLLM(args),
+        // AFTER (real)
+// --- TOP-LEVEL, not inside any object ---
+export async function invokeLLM({ prompt, messages, kbContext } = {}) {
+  const msgs = Array.isArray(messages) && messages.length
+    ? messages
+    : (prompt ? [{ role: "user", content: prompt }] : []);
 
-        // stubs (valid properties)
-        GenerateImage: async ({ prompt }) => {
-          console.warn("GenerateImage stub:", prompt);
-          return {
-            url: `https://picsum.photos/seed/${encodeURIComponent(prompt || "img")}/1024/576`,
-          };
-        },
-        SendEmail: async ({ to, subject, body, from_name = "Peace Adventures" }) => {
-          console.warn("SendEmail stub:", { to, subject, from_name, len: body?.length });
-          return { status: "sent", message_id: `stub_${Date.now()}` };
-        },
-        ExtractDataFromUploadedFile: async ({ file_url, json_schema }) => {
-          console.warn("ExtractDataFromUploadedFile stub:", { file_url, json_schema });
-          return { status: "success", output: json_schema?.type === "array" ? [] : {} };
-        },
-      },
-    },
-  };
+  const isDev = typeof import.meta !== "undefined" && import.meta.env && import.meta.env.DEV;
+  const base = isDev && typeof import.meta.env.VITE_API_BASE === "string"
+    ? import.meta.env.VITE_API_BASE
+    : "";
+
+  const url = `${base}/api/chat`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages: msgs, kbContext: kbContext || "" }),
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`LLM API failed: ${res.status} ${txt}`);
+  }
+
+  const data = await res.json();
+  return { content: data.content || "" };
 }
+
+
+// keep Base44 shape if the rest of your app expects it
+export const Integrations = {
+  // ... somewhere LOWER in the file, inside your returned/assigned object:
+Core: {
+  // ✅ property referencing the top-level function (NO export here)
+  InvokeLLM: (args) => invokeLLM(args),
+
+  // keep your other props as properties:
+  SendEmail: async ({ to, subject, body, from_name = "Peace Adventures" }) => {
+    console.warn("SendEmail mock:", { to, subject, from_name, len: body?.length });
+    return { status: "sent", message_id: `mock_${Date.now()}` };
+  },
+  UploadFile: async ({ file }) => {
+    console.warn("UploadFile mock:", file?.name, file?.size, file?.type);
+    return { file_url: `https://mock-storage.local/${Date.now()}_${file?.name || "file"}` };
+  },
+  GenerateImage: async ({ prompt }) => {
+    console.warn("GenerateImage mock:", prompt);
+    return { url: `https://mock-ai-images.local/${Date.now()}.png` };
+  },
+  ExtractDataFromUploadedFile: async ({ file_url, json_schema }) => {
+    console.warn("ExtractDataFromUploadedFile mock:", { file_url, json_schema });
+    return { status: "success", output: json_schema?.type === "array" ? [] : {} };
+  },
+},
+
+
 
 // Default singleton-style export (optional)
 export const customClient = createCustomClient();
