@@ -1,4 +1,5 @@
 // src/pages/Chat.jsx
+import { invokeLLM } from "@/lib/custom-sdk";
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -864,9 +865,9 @@ Generate a cartoon-style Vietnamese history illustration for students.`;
       } else {
         try {
           console.log('🤖 Calling LLM with prompt length:', prompt.length);
-          const llmResult = await base44.integrations.Core.InvokeLLM({
-            prompt,
-            add_context_from_internet: contentMode === 'OPEN_SEARCH',
+          const llmResult = await invokeLLM({
+            prompt:content,
+            kbContext: currentKbText || ""
           });
 
           let body = '';
