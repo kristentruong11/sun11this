@@ -6,6 +6,32 @@ import { getSupabase, getSupabaseAdminSafe } from "./supabase-client.js";
 // Cache the supabase clients (admin is null in browser)
 const supabase = getSupabase();
 const supabaseAdmin = getSupabaseAdminSafe();
+// Top-level helper (NOT inside any object/return)
+export async function invokeLLM({ prompt, messages, kbContext } = {}) {
+  const msgs = (Array.isArray(messages) && messages.length)
+    ? messages
+    : (prompt ? [{ role: "user", content: prompt }] : []);
+
+  const base = import.meta?.env?.DEV
+    ? (import.meta.env.VITE_API_BASE || "")
+    : "";
+  const url = `${base}/api/chat`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages: msgs, kbContext: kbContext || "" }),
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`LLM API failed: ${res.status} ${txt}`);
+  }
+
+  const data = await res.json();
+  return { content: data.content || "" };
+}
+
 
 /* -------------------------------- Utilities -------------------------------- */
 
@@ -371,20 +397,26 @@ export function createCustomClient() {
       Core: {
         // AFTER (real)
 export async function invokeLLM({ prompt, messages, kbContext } = {}) {
-  const msgs = messages && messages.length
+  // normalize to a messages[] array
+  const msgs = (Array.isArray(messages) && messages.length)
     ? messages
     : (prompt ? [{ role: "user", content: prompt }] : []);
 
-  // For local dev, you can set VITE_API_BASE="https://lich-su.org" in .env.local
+  // In local dev, use your production domain if VITE_API_BASE is set
+  // .env.local: VITE_API_BASE=https://lich-su.org
   const base = import.meta?.env?.DEV
     ? (import.meta.env.VITE_API_BASE || "")
     : "";
+
   const url = `${base}/api/chat`;
 
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages: msgs, kbContext: kbContext || "" }),
+    body: JSON.stringify({
+      messages: msgs,
+      kbContext: kbContext || ""
+    }),
   });
 
   if (!res.ok) {
@@ -393,37 +425,16 @@ export async function invokeLLM({ prompt, messages, kbContext } = {}) {
   }
 
   const data = await res.json();
-  // Keep the return shape compatible with your caller
   return { content: data.content || "" };
 }
 
-// (optional) keep the same shape Base44 expected:
+// keep Base44 shape if the rest of your app expects it
 export const Integrations = {
   Core: {
     InvokeLLM: (args) => invokeLLM(args),
   },
 };
 
-        SendEmail: async ({ to, subject, body, from_name = "Peace Adventures" }) => {
-          console.warn("SendEmail mock:", { to, subject, from_name, len: body?.length });
-          return { status: "sent", message_id: `mock_${Date.now()}` };
-        },
-        UploadFile: async ({ file }) => {
-          console.warn("UploadFile mock:", file?.name, file?.size, file?.type);
-          return { file_url: `https://mock-storage.local/${Date.now()}_${file?.name || "file"}` };
-        },
-        GenerateImage: async ({ prompt }) => {
-          console.warn("GenerateImage mock:", prompt);
-          return { url: `https://mock-ai-images.local/${Date.now()}.png` };
-        },
-        ExtractDataFromUploadedFile: async ({ file_url, json_schema }) => {
-          console.warn("ExtractDataFromUploadedFile mock:", { file_url, json_schema });
-          return { status: "success", output: json_schema?.type === "array" ? [] : {} };
-        },
-      },
-    },
-  };
-}
 
 // Default singleton-style export (optional)
 export const customClient = createCustomClient();

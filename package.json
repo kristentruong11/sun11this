@@ -1,8 +1,8 @@
-{
-  "name": "base44-app",
+{ "type": "module",
+  "name": "Sun",
   "private": true,
   "version": "0.0.0",
-  "type": "module",
+  
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -49,6 +49,7 @@
     "input-otp": "^1.4.2",
     "lucide-react": "^0.475.0",
     "next-themes": "^0.4.4",
+    "openai": "^6.7.0",
     "react": "^18.2.0",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.2.0",
