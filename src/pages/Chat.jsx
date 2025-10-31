@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import { Menu, Loader2 } from "lucide-react";
 
-// ✅ Use relative imports for Vercel compatibility
+// ✅ Relative imports for Vercel compatibility
 import { base44 } from "../api/base44Client";
 import { invokeLLM } from "../lib/custom-sdk";
 
@@ -16,6 +16,7 @@ import RoleSelector from "../components/chat/RoleSelector";
 import RoleSwitcher from "../components/chat/RoleSwitcher";
 
 import {
+  parseGradeLessonFromText,      // if you need it elsewhere
   findKBByGradeLesson,
   findKBInArray,
 } from "../lib/kb-helpers";
@@ -324,11 +325,11 @@ export default function Chat() {
       // Parse lesson
       const { gradeLevel, lessonNumber } = parseUserQuery(trimmed);
 
-      // Figure effective context
+      // Effective context
       let effectiveGrade = gradeLevel || currentLessonContext?.grade;
       let effectiveLesson = lessonNumber || currentLessonContext?.lesson;
 
-      // If generic “Giải thích cho tôi về” without numbers → ask for lesson/grade
+      // Ask for lesson/grade if generic opener
       const isGeneric = normalizeText(trimmed).includes("giai thich cho toi ve");
       if (isGeneric && !effectiveGrade && !effectiveLesson) {
         await createMessageMutation.mutateAsync({
@@ -345,20 +346,15 @@ export default function Chat() {
         return;
       }
 
-      // Lookup lesson doc (if we have numbers)
+      // Lookup lesson doc
       let lessonDoc = null;
       if (effectiveLesson && effectiveGrade) {
-        // 1) Try in-memory
-        lessonDoc =
-          findKBInArray(knowledgeBase, {
-            gradeLevel: String(effectiveGrade),
-            lessonNumber: String(effectiveLesson),
-          }) ||
-          // 2) Fallback to DB
-          (await findKBByGradeLesson(
-            String(effectiveGrade),
-            String(effectiveLesson)
-          ));
+        // ✅ Correct usage of helpers
+        lessonDoc = findKBByGradeLesson(
+          knowledgeBase,
+          String(effectiveGrade),
+          String(effectiveLesson)
+        );
 
         // Persist context if found
         if (lessonDoc) {
@@ -381,6 +377,21 @@ export default function Chat() {
           });
           setIsLoading(false);
           return;
+        }
+      } else {
+        // If no explicit numbers, try fuzzy search from user text
+        const hits = findKBInArray(knowledgeBase, trimmed);
+        if (Array.isArray(hits) && hits.length > 0) {
+          lessonDoc = hits[0];
+          const ctx = {
+            lesson: String(lessonDoc.lesson || lessonDoc.lesson_number || ""),
+            grade: String(lessonDoc.grade || lessonDoc.grade_level || ""),
+            title: lessonDoc.title,
+            lesson_number: lessonDoc.lesson_number,
+            grade_level: lessonDoc.grade_level,
+          };
+          setCurrentLessonContext(ctx);
+          localStorage.setItem(`lesson_context_${chatId}`, JSON.stringify(ctx));
         }
       }
 
@@ -457,9 +468,6 @@ export default function Chat() {
         setIsLoading(false);
         return;
       }
-      // Safety guards in case older code paths still reference these
-      const matchedLessons = [];     // <- prevents "matchedLessons is not defined"
-      const currentKbText = "";      // <- prevents "currentKbText is not defined"
 
       // ---------- BEGIN: safe LLM context + call ----------
       const contentMode =
@@ -552,7 +560,7 @@ ${(lessonDoc.content || "").toString().slice(0, 1200)}`
         isDarkMode={isDarkMode}
       />
     );
-    }
+  }
 
   return (
     <div
