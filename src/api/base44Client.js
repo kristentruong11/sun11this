@@ -1,6 +1,16 @@
 // src/api/base44Client.js
-import { customClient } from "@/lib/custom-sdk";
+import { createCustomClient } from "@/lib/custom-sdk";
 
-// Recreate the old Base44-shaped client so existing imports keep working
-export const base44 = customClient;
-// (customClient already exposes: entities, auth, functions, integrations)
+// Create a single app-wide client instance
+const client = createCustomClient();
+
+// Re-expose it under the old name so existing code keeps working
+export const base44 = client;
+
+// (Optional) quick self-check during dev:
+if (typeof window !== "undefined") {
+  console.log("[base44 shim] ready:", {
+    hasEntities: !!base44?.entities,
+    hasIntegrations: !!base44?.integrations?.Core,
+  });
+}
