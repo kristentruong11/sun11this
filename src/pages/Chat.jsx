@@ -865,10 +865,28 @@ Generate a cartoon-style Vietnamese history illustration for students.`;
       } else {
         try {
           console.log('🤖 Calling LLM with prompt length:', prompt.length);
-          const llmResult = await invokeLLM({
-            prompt:content,
-            kbContext: currentKbText || ""
-          });
+          // Build a safe kbContext (use whatever lesson info you already have in scope)
+          const kbContext =
+            (Array.isArray(matchedLessons) && matchedLessons.length
+              ? matchedLessons.slice(0, 3) // cap to keep prompt small
+                  .map(l => `Bài ${l.lesson} (Lớp ${l.grade}) — ${l.title || ""}`)
+                  .join("\n")
+              : "") || "";
+
+// If you also keep a “selected lesson” object, you can append more detail:
+          const selectedSnippet = (selectedLesson?.content || selectedLesson?.summary || "").toString().slice(0, 1200);
+          const effectiveKbContext = [kbContext, selectedSnippet].filter(Boolean).join("\n").trim();
+
+// Call your LLM (either via shimmed base44 or direct import)
+          const llmResult = await base44.integrations.Core.InvokeLLM({
+            prompt,
+            kbContext: effectiveKbContext
+});
+
+// Or, if you imported it directly:
+// import { invokeLLM } from "@/lib/custom-sdk";
+// const llmResult = await invokeLLM({ prompt: normalizedContent, kbContext: effectiveKbContext });
+
 
           let body = '';
           if (typeof llmResult === 'string') body = llmResult;
