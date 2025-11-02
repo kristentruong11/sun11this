@@ -1,14 +1,7 @@
-import './App.css'
-import Pages from "@/pages/index.jsx"
-import { Toaster } from "@/components/ui/toaster"
-
-function App() {
+export default function App() {
   return (
-    <>
-      <Pages />
-      <Toaster />
-    </>
-  )
+    <div style={{ padding: 24, fontFamily: 'sans-serif' }}>
+      ✅ React mounted (prod build)
+    </div>
+  );
 }
-
-export default App 

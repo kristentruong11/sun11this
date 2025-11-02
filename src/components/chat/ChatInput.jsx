@@ -5,6 +5,10 @@ import { Send, Loader2, GraduationCap } from "lucide-react";
 import { motion } from "framer-motion";
 import QuickActions from "./QuickActions";
 import VoiceInput from "./VoiceInput";
+import { askSmart } from '@/ai/api';
+
+const r = await askSmart(message);
+// r.completion is the assistant answer string
 
 export default function ChatInput({ onSendMessage, isLoading, isDarkMode, userRole }) {
   const [message, setMessage] = useState("");
