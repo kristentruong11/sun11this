@@ -1,69 +1,50 @@
-// src/components/chat/MessageBubble.jsx
-import React from "react";
-import ReactMarkdown from "react-markdown";
-import { motion } from "framer-motion";
+import React from 'react';
+import { motion } from 'framer-motion';
+import { Bot, User } from 'lucide-react';
+import { format } from 'date-fns';
+import ReactMarkdown from 'react-markdown';
 
-/**
- * Props:
- * - message: { id, role: 'user'|'assistant'|'kb', content: string, timestamp?: string,
- *              lessonContext?: { grade, lesson, title } }
- * - userRole: 'student'|'teacher'
- * - isDarkMode: boolean
- * - onQuickSelect: (text: string) => void
- *
- * IMPORTANT: No scanning of assistant text. Task chips only when role === 'kb'.
- */
-export default function MessageBubble({ message, userRole = "student", isDarkMode, onQuickSelect }) {
-  const role = message?.role || "assistant";
-  const isUser = role === "user";
-  const isKB = role === "kb";
-
-  const wrapperClass = `max-w-4xl ${isUser ? "ml-auto" : ""}`;
-  const bubbleClass = [
-    "rounded-2xl px-4 py-3 shadow-sm",
-    isUser ? "bg-blue-600 text-white"
-           : isKB  ? "bg-emerald-50"
-                   : "bg-gray-50"
-  ].join(" ");
-
-  const lc = message?.lessonContext || null;
-  const titleLine = isKB ? (
-    <div className="text-sm font-semibold mb-1">
-      {lc?.title || "Nội dung bài học"}
-      {(lc?.grade && lc?.lesson) ? ` (Bài ${lc.lesson} - Lớp ${lc.grade})` : ""}
-    </div>
-  ) : null;
-
+export default function ChatMessage({ message, index, isDarkMode }) {
+  const isUser = message.role === 'user';
+  
   return (
-    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className={wrapperClass}>
-      <div className={bubbleClass}>
-        {titleLine}
-        <div className="prose prose-sm max-w-none">
-          <ReactMarkdown>{String(message?.content ?? "")}</ReactMarkdown>
-        </div>
-
-        {isKB && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            <TaskChip label="Tạo 5 câu trắc nghiệm" onClick={() => onQuickSelect?.("Tạo 5 câu trắc nghiệm")} />
-            <TaskChip label="Tạo 3 câu đúng-sai" onClick={() => onQuickSelect?.("Tạo 3 câu đúng-sai")} />
-            <TaskChip label="Tạo 7 flashcards" onClick={() => onQuickSelect?.("Tạo 7 flashcards")} />
-            <TaskChip label="Giải thích bài học" onClick={() => onQuickSelect?.("Giải thích bài học")} />
-            <TaskChip label="Tạo ảnh minh họa" onClick={() => onQuickSelect?.("Tạo ảnh minh họa")} />
-          </div>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay: index * 0.05 }}
+      className={`flex gap-3 mb-6 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
+    >
+      <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
+        isUser 
+          ? 'bg-gradient-to-br from-emerald-500 to-teal-600' 
+          : 'bg-gradient-to-br from-indigo-500 to-purple-600'
+      }`}>
+        {isUser ? (
+          <User className="w-5 h-5 text-white" />
+        ) : (
+          <Bot className="w-5 h-5 text-white" />
         )}
       </div>
+      
+      <div className={`flex flex-col max-w-[75%] ${isUser ? 'items-end' : 'items-start'}`}>
+        <div className={`rounded-2xl px-5 py-3 backdrop-blur-sm ${
+          isUser
+            ? 'bg-gradient-to-br from-emerald-500/90 to-teal-600/90 text-white'
+            : isDarkMode
+              ? 'bg-gray-700/80 text-gray-100 shadow-lg border border-gray-600'
+              : 'bg-white/80 text-gray-800 shadow-lg border border-gray-100'
+        }`}>
+          <div className="prose prose-sm max-w-none">
+            <ReactMarkdown>{message.content}</ReactMarkdown>
+          </div>
+        </div>
+        <span className={`text-xs mt-1 px-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+          {format(new Date(message.timestamp), 'HH:mm')}
+          {message.emotion && (
+            <span className="ml-2">· Cảm xúc: {message.emotion}</span>
+          )}
+        </span>
+      </div>
     </motion.div>
-  );
-}
-
-function TaskChip({ label, onClick }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="px-3 py-1.5 rounded-full border text-xs hover:bg-gray-100"
-    >
-      {label}
-    </button>
   );
 }

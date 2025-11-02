@@ -1,58 +1,38 @@
 // src/lib/kb-helpers.js
-export const toInt = (v) => {
-  if (v === null || v === undefined) return NaN;
-  const m = String(v).match(/\d+/);
-  if (!m) return NaN;
-  const n = parseInt(m[0], 10);
-  return Number.isFinite(n) ? n : NaN;
-};
 
-/** Primary: match by numeric grade & lesson (supports both new and old field names). */
-export function findKBByGradeLesson(list = [], grade, lesson) {
-  const g = toInt(grade);
-  const l = toInt(lesson);
-  if (Number.isNaN(g) || Number.isNaN(l)) return null;
-
-  return (
-    list.find((r) => {
-      const rg = toInt(r.grade ?? r.grade_level);
-      const rl = toInt(r.lesson ?? r.lesson_number);
-      return rg === g && rl === l;
-    }) || null
-  );
+/**
+ * Parse "Bài X Lớp Y" from any text the user typed.
+ * Returns { lesson: number|null, grade: number|null }
+ */
+export function parseGradeLessonFromText(text) {
+  if (!text || typeof text !== 'string') return { lesson: null, grade: null }
+  // Accept forms like: "bài 2 lớp 12", "Bai 2 Lop 12", "Bài 2 Lớp 12", "Bài 2", "Lớp 10"
+  const lower = text.toLowerCase().normalize('NFC')
+  const lessonMatch = lower.match(/b[àa]i\s*(\d+)/i)
+  const gradeMatch  = lower.match(/l[ớo]p\s*(\d+)/i)
+  const lesson = lessonMatch ? Number(lessonMatch[1]) : null
+  const grade  = gradeMatch  ? Number(gradeMatch[1])  : null
+  return { lesson, grade }
 }
 
-/** Fallback: fuzzy title contains search. */
-export function findKBInArray(list = [], text = "") {
-  const q = (text || "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim();
-  if (!q) return [];
-  return list.filter((r) => {
-    const t = (r.title || "")
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "");
-    return t.includes(q);
-  });
+/**
+ * Find an item in a KB array by grade+lesson.
+ * kbArray = [{ grade: 12, lesson: 2, ...}, ...]
+ */
+export function findKBInArray(kbArray, grade, lesson) {
+  if (!Array.isArray(kbArray)) return null
+  return kbArray.find(
+    (it) =>
+      (Number(it?.grade) === Number(grade)) &&
+      (Number(it?.lesson) === Number(lesson))
+  ) || null
 }
 
-/** Optional: parse “bai X lop Y” from free text (you already import similar). */
-export function parseGradeLessonFromText(text = "") {
-  const s = text
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, ""); // strip accents
-
-  const lg = s.match(/\blop\s*(10|11|12|muoi|muoi mot|muoi hai)\b/);
-  const g = lg
-    ? lg[1] === "muoi" ? "10" : lg[1] === "muoi mot" ? "11" : lg[1] === "muoi hai" ? "12" : lg[1]
-    : null;
-
-  const ll = s.match(/\bbai\s*:?[\s]*(\d+)\b/);
-  const l = ll ? ll[1] : null;
-
-  return { gradeLevel: g, lessonNumber: l };
+/**
+ * Convenience: parse grade/lesson from free text, then search in kbArray.
+ */
+export function findKBByGradeLesson(kbArray, freeText) {
+  const { grade, lesson } = parseGradeLessonFromText(freeText)
+  if (grade == null || lesson == null) return null
+  return findKBInArray(kbArray, grade, lesson)
 }
